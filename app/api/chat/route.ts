@@ -42,6 +42,37 @@ Standalone question:`,
   console.log("\n====================================");
   console.log("Standalone question:", answer.content);
 
+ // Extract the language of conversation to later query the vector db.
+ const language = await contextSearchModel.call(
+    parseMessages([
+      ...messages,
+      {
+        id: "0",
+        role: "system",
+        content: `Given the conversation, determine the language used. Reply only with the language, nothing else.
+  ----------
+  The language of conversation is:`,
+      },
+    ])
+  );
+
+
+
+  let languageInstructionString = "";
+
+  if(language && language.content) {
+    let langString = language.content;
+    if(langString.includes("The language of conversation is")) {
+      langString = langString.slice(32);
+    }
+    const languageName = langString.replace(/(\r\n|\n|\r)/gm, "").replace(".", "");
+    if(langString !== "English") {
+      languageInstructionString = `Translate the answer into ${languageName}`;
+    }
+  }
+  console.log(language.content, " => Language instruction:", languageInstructionString);
+  console.log("\n========================================================================");
+
   let systemInstructions = "";
 
   // Get the standalone question and search the vector db.
@@ -70,10 +101,13 @@ Answer questions related to contract law, employment regulations, or corporate o
 Base your answers exclusively on the provided top ${topDocumentsLimit} articles from the Swiss Code of Obligations.
 Please provide a summary of the relevant article(s), along with the source link(s) for reference.
 If an answer is not explicitly covered in the provided context, please indicate so.
+${languageInstructionString}
 ----
 
 CONTEXT: ${contextString}`;
 
+  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+  console.log("Model instructions: ", systemInstructions)
   // Call and stream the LLM with the instructions, context and user messages.
   const stream = await chatModel
     .pipe(new BytesOutputParser())
